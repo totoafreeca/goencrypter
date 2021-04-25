@@ -107,9 +107,9 @@ func (d *desCypher) Decrypt(key string, message string) string {
 	}
 
 	combined := right + left
-	encipheredText := permute(combined, finalPermutation)
+	decryptedText := permute(combined, finalPermutation)
 
-	return encipheredText
+	return decryptedText
 }
 
 func NewDesEncrypter() Encrypter {
