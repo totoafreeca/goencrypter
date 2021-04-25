@@ -49,7 +49,7 @@ func byteArrayToString(bytes []byte) string {
 	return out
 }
 
-var ErrRange = errors.New("Value out of range")
+var ErrRange = errors.New("value out of range")
 
 func bitStringToBytes(s string) ([]byte, error) {
 	b := make([]byte, (len(s)+(8-1))/8)
@@ -65,7 +65,7 @@ func bitStringToBytes(s string) ([]byte, error) {
 
 func main() {
 
-	optionInputFileName := flag.String("input", "test.bin", "Name of a file to be encrypted")
+	optionInputFileName := flag.String("input", "2.bin", "Name of a file to be encrypted")
 	optionOperationType := flag.Bool("encrypt", true, "Operation type: True - encrypt, False - decrypt")
 
 	flag.Parse()
@@ -97,7 +97,6 @@ func main() {
 	//Opening and reading
 
 	file, err := os.Open(*optionInputFileName)
-	defer file.Close()
 	check(err)
 
 	stats, statsErr := file.Stat()
@@ -108,47 +107,69 @@ func main() {
 
 	bufr := bufio.NewReader(file)
 	_, err = bufr.Read(bytes)
+	check(err)
 
+	file.Close()
 	switch *optionOperationType {
 	case true:
+
 		encrypter := des.NewDesEncrypter()
-		//Writing encrypted (bytes are read data)
 
 		//opening
 		f, err := os.Create("Encrypted_" + *optionInputFileName)
 		check(err)
 
+		//checking if the message needs to be padded
+		zeroBytesToPad := 8 - (size % 8)
+		if zeroBytesToPad != 0 {
+
+			for i := 0; i < int(zeroBytesToPad); i++ {
+				bytes = append(bytes, byte(0))
+			}
+			size += zeroBytesToPad
+		}
+		encryptedBytes := []byte{}
 		for i := int64(0); i < size; i += 8 {
 			fileMSG := bytes[i : i+8]
 
 			val := encrypter.Encrypt(binaryKey, byteArrayToString(fileMSG))
 
-			encryptedBytes, err := bitStringToBytes(val)
+			valBytes, err := bitStringToBytes(val)
 			check(err)
 
-			f.Write(encryptedBytes)
-			f.Sync()
+			encryptedBytes = append(encryptedBytes, valBytes...)
 
 		}
+
+		f.Write(encryptedBytes)
+		var lastByte = []byte{byte(zeroBytesToPad)}
+		f.Write(lastByte)
+		f.Sync()
+
 		fmt.Printf("Encoding file %s finished - result: %s\n", *optionInputFileName, "Encrypted_"+*optionInputFileName)
 		f.Close()
 
 	case false:
-		f, err := os.Create("Decrypted" + *optionInputFileName)
+		f, err := os.Create("Decrypted_" + *optionInputFileName)
 		check(err)
 
+		paddedZeroBytes := bytes[len(bytes)-1]
+
 		decrypter := des.NewDesDecrypter()
-		for i := int64(0); i < size; i += 8 {
+
+		decryptedBytes := []byte{}
+		for i := int64(0); i < size-1; i += 8 {
 			fileMSG := bytes[i : i+8]
 
 			val := decrypter.Decrypt(binaryKey, byteArrayToString(fileMSG))
 
-			decryptedBytes, err := bitStringToBytes(val)
+			valBytes, err := bitStringToBytes(val)
 			check(err)
-
-			f.Write(decryptedBytes)
-			f.Sync()
+			decryptedBytes = append(decryptedBytes, valBytes...)
 		}
+
+		f.Write(decryptedBytes[0 : len(decryptedBytes)-int(paddedZeroBytes)])
+		f.Sync()
 		fmt.Printf("Decoding file %s finished - result: %s\n", *optionInputFileName, "Decrypted_"+*optionInputFileName)
 		f.Close()
 	}
